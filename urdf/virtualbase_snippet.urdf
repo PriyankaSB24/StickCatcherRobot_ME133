@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<!-- virtualbase_snippet.urdf
+
+     Heads up: this is NOT a robot you can run on its own.  It's a
+     chunk of XML to paste into the top of our copy of the Atlas URDF
+     when we start doing the stepping (milestone 2).  Don't bother
+     with it for Tuesday.
+
+     WHAT IT'S FOR:
+     Right now Atlas is glued to the world - we just broadcast a
+     world->pelvis transform in catch.py and he hovers there.  That's
+     fine while he's standing still, but he can't step if he can't
+     move.  The fix is to give the base six fake joints: three sliding
+     ones (x, y, z) and three spinning ones (yaw, pitch, roll).  Then
+     "where Atlas is standing" is just six more numbers in q, and the
+     IK can solve for them like any other joint.
+
+     Which sounds like it should make him float away, and it would -
+     except we also add a task that says "the stance foot does not
+     move."  That's what holds him down.  Pin one foot, let the solver
+     shuffle the base around however it needs to, and swap feet when
+     you want to take a step.  Kind of a cute trick honestly.
+
+     STUFF THAT WILL BITE YOU WHEN YOU PASTE THIS IN:
+
+     1. The Atlas URDF probably already has a <link name="world"> or a
+        fixed world->pelvis joint somewhere.  Delete it.  A URDF can
+        only have one root and now it's going to be ours.
+
+     2. These six joints have to go FIRST in self.armjoints / the
+        joint list, in exactly this order, or q lines up wrong and
+        everything goes sideways in a very confusing way.
+
+     3. Go into catch.py and delete the broadcaster.sendTransform()
+        bit at the bottom.  Once these joints exist,
+        robot_state_publisher publishes world->pelvis itself, and if
+        we're also publishing it the two fight and the robot jitters.
+
+     4. Check our KinematicChain.py actually handles prismatic
+        (sliding) joints:
+            grep -in "prismatic\|LINEAR" KinematicChain.py
+        The HW5 version only knew about REVOLUTE and FIXED.  If ours
+        is the same we have to add the sliding case, which is honestly
+        easier than the rotating one:
+            shift:    p = p + q * n
+            Jacobian: Jv = n,  Jw = 0
+        (makes sense - sliding along an axis moves the tip in that
+        direction and doesn't rotate anything.)
+
+     5. The prismatic joints need a <limit> tag or the URDF won't
+        load.  The numbers don't matter much, they just have to be
+        there and be big enough to not clip us.
+-->
+
+  <link name="world"/>
+
+  <!-- slide along x -->
+  <joint name="basex" type="prismatic">
+    <parent link="world"/>
+    <child  link="basexlink"/>
+    <axis   xyz="1 0 0"/>
+    <limit  lower="-10.0" upper="10.0" effort="0.0" velocity="0.0"/>
+  </joint>
+  <link name="basexlink"/>
+
+  <!-- slide along y -->
+  <joint name="basey" type="prismatic">
+    <parent link="basexlink"/>
+    <child  link="baseylink"/>
+    <axis   xyz="0 1 0"/>
+    <limit  lower="-10.0" upper="10.0" effort="0.0" velocity="0.0"/>
+  </joint>
+  <link name="baseylink"/>
+
+  <!-- slide along z (can't go below the floor, hence lower=0) -->
+  <joint name="basez" type="prismatic">
+    <parent link="baseylink"/>
+    <child  link="basezlink"/>
+    <axis   xyz="0 0 1"/>
+    <limit  lower="  0.0" upper=" 3.0" effort="0.0" velocity="0.0"/>
+  </joint>
+  <link name="basezlink"/>
+
+  <!-- now the three rotations: yaw, then pitch, then roll -->
+  <joint name="baseyaw" type="continuous">
+    <parent link="basezlink"/>
+    <child  link="baseyawlink"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+  <link name="baseyawlink"/>
+
+  <joint name="basepitch" type="continuous">
+    <parent link="baseyawlink"/>
+    <child  link="basepitchlink"/>
+    <axis   xyz="0 1 0"/>
+  </joint>
+  <link name="basepitchlink"/>
+
+  <!-- and this last one hands off to the real robot -->
+  <joint name="baseroll" type="continuous">
+    <parent link="basepitchlink"/>
+    <child  link="pelvis"/>
+    <axis   xyz="1 0 0"/>
+  </joint>
+
+  <!-- ...everything below here is the normal Atlas URDF, starting
+       with <link name="pelvis">.  Don't touch any of it. -->

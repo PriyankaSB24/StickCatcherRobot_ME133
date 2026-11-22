@@ -1,0 +1,18 @@
+# colcon artifacts (these live in ~/robotws, but just in case)
+build/
+install/
+log/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# ros bags / recordings
+*.db3
+*.mcap
+metadata.yaml
+
+# editor / OS
+.vscode/
+.DS_Store
