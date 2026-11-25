@@ -1,0 +1,1 @@
+# NODE 1: random stick, ballistic fall
