@@ -96,7 +96,7 @@ def read_HTML(node):
 #
 def parse_HTML(node, html, baseframe, tipframe):
     # Convert the URDF string into a Robot object and report.
-    robot = Robot.from_xml_string(html)
+    robot = Robot.from_xml_string(html.encode('utf-8'))
     info(node, f"Proccessing URDF for robot '{robot.name}'")
     info(node, f"Building chain from '{baseframe}' to '{tipframe}'")
 
@@ -292,35 +292,41 @@ class KinematicChain():
         # go.  Each step could be a fixed or active URDF joint.
         for step in self.chain:
 
-            FIXME("""
-              The T varable is the T matrix of a step w.r.t. world.
-              As the loop iterates over steps, adjust the T matrix to
-              incorporate the step (move up the chain).
+            # FIXME("""
+            #   The T varable is the T matrix of a step w.r.t. world.
+            #   As the loop iterates over steps, adjust the T matrix to
+            #   incorporate the step (move up the chain).
 
-              Note the step is of type URDFStep (see above) and contains:
-                step.Tshift     Fixed transform w.r.t. the previous frame
-                step.nlocal     Joint axis in the local (post-shift) frame
-                step.dof        Joint number
-              which also tell us
-                q[step.dof]     Joint position (angle or displacement)
-            """)
+            #   Note the step is of type URDFStep (see above) and contains:
+            #     step.Tshift     Fixed transform w.r.t. the previous frame
+            #     step.nlocal     Joint axis in the local (post-shift) frame
+            #     step.dof        Joint number
+            #   which also tell us
+            #     q[step.dof]     Joint position (angle or displacement)
+            # """)
 
             # Take action based on the joint type: Move the transform T
             # up the kinematic chain (remaining w.r.t. the base frame).
             if step.type is JointType.REVOLUTE:
                 # Revolute is a shift followed by a rotation:
 
-                T = T @ FIXME("What to for a revolute joint?")
+                R_r = Rotn(step.nlocal, q[step.dof]) # rotate about the joint axis
+                p_r = pzero() # does not move position
+
+                T = T @ step.Tshift @ T_from_Rp(R_r, p_r) # shift + rotate
 
             elif step.type is JointType.LINEAR:
                 # Linear is a shift followed by a translation:
 
-                T = T @ FIXME("What to for a prismatic joint?")
+                R_l = Reye() # identity rotation matrix
+                p_l = step.nlocal * q[step.dof] # positon changes along the axis
+
+                T = T @ step.Tshift @ T_from_Rp(R_l, p_l) # shift + translate
 
             else:
                 # Fixed is only a shift.
 
-                T = T @ FIXME("What to for a fixed joint?")
+                T = T @ step.Tshift
 
 
             # For active joints (our DOFs), store the type, positon (pi),
@@ -340,31 +346,31 @@ class KinematicChain():
         Jw = np.zeros((3,self.dofs))
         for i in range(self.dofs):
 
-            FIXME("""
-              Calculate the Jacobian.
+            # FIXME("""
+            #   Calculate the Jacobian.
 
-              This loops over the dofs, effectively ignoring the fixed
-              URDF joints.  They do not enter into the Jacobian.
+            #   This loops over the dofs, effectively ignoring the fixed
+            #   URDF joints.  They do not enter into the Jacobian.
 
-              After having walked up the chain above, we now have:
-              type[i]   Joint type
-              p[i]      Joint position w.r.t. world
-              n[i]      Joint axis w.r.t. world
-            """)
+            #   After having walked up the chain above, we now have:
+            #   type[i]   Joint type
+            #   p[i]      Joint position w.r.t. world
+            #   n[i]      Joint axis w.r.t. world
+            # """)
 
             # Fill in the appropriate Jacobian column based on the
             # type.  The Jacobian (like the data) is w.r.t. the base.
             if type[i] is JointType.REVOLUTE:
                 # Revolute is a rotation:
 
-                Jv[:,i] = FIXME("What is Jv for a revolute joint?")
-                Jw[:,i] = FIXME("What is Jw for a revolute joint?")
+                Jv[:,i] = np.cross(n[i], ptip - p[i]) # cross product of joint axis and position vector
+                Jw[:,i] = n[i] # joint axis
 
             elif type[i] is JointType.LINEAR:
                 # Linear is a translation:
 
-                Jv[:,i] = FIXME("What is Jv for a prismatic joint?")
-                Jw[:,i] = FIXME("What is Jw for a prismatic joint?")
+                Jv[:,i] = n[i] # joint axis
+                Jw[:,i] = np.zeros(3) # zero vector since no rotation
 
 
         # Return the info

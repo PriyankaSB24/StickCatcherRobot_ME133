@@ -26,8 +26,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'stick      = stickcatcher.stick:main',
-            'catch      = stickcatcher.catch:main',
+            'stick = stickcatcher.stick:main',
+            'catch = stickcatcher.catch:main',
+            'sticksim = stickcatcher.sticksim:main',
         ],
     },
 )

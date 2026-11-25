@@ -15,8 +15,6 @@
 import numpy as np
 from math import sqrt
 
-from stickcatcher.stickcatcher import stickpredict
-
 G = 9.81
 ZCATCH = 1.05 # fixed catching height in meters
 

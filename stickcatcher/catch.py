@@ -17,16 +17,16 @@ from rclpy.node         import Node
 from geometry_msgs.msg  import PoseStamped, TwistStamped
 from geometry_msgs.msg  import TransformStamped
 from sensor_msgs.msg    import JointState
-from std_msgs.msg       import Header
+from std_msgs.msg       import Header, Bool, String
 
 from utils.TransformHelpers        import *
 from utils.TrajectoryUtils         import goto, goto5, spline
 from stickcatcher.KinematicChain     import KinematicChain
 
 
-ELVISZ = 0.95  #pelvis z so feet touch ground
+PELVISZ = 0.95  #pelvis z so feet touch ground
 ZCATCH = 1.05   # catch height
-TREACH = 0.80   # time to reach catch point (s)
+TREACH = 0.45   # time to reach catch point (s)
 REACH = 0.75    #  max arm reach (m)
 SPAWNZ = 2.20   # spawn z (matches stick.py)
 
@@ -56,12 +56,19 @@ class TrajectoryNode(Node):
         }
 
         # Arm kin chain
-        self.chain = KinematicChain(
-            self, 'pelvis', 'r_hand', self.armjoints)
+        self.chain = KinematicChain(self, 'utorso', 'r_hand', self.armjoints)
 
         # The fixed world -> pelvis transform 
         self.Rwp = Reye()
         self.pwp = pxyz(0.0, 0.0, PELVISZ)
+
+        # pelvis to upper torso transformation
+        # all three back joint angles are zero
+        self.ppt = pxyz(-0.0125, 0.0, 0.212)
+
+        # world to upper torso transformation
+        self.Rwt = self.Rwp
+        self.pwt = self.pwp + self.Rwp @ self.ppt
 
         self.q0 = np.radians(np.array([0.0, 60.0, 90.0, -90.0,
                                        0.0, 0.0, 0.0]))
@@ -83,12 +90,13 @@ class TrajectoryNode(Node):
         # Node logistics
         self.pubjoint = self.create_publisher(JointState, '/joint_states', 10)
         self.pubhand  = self.create_publisher(PoseStamped, '/hand', 10)
+        self.pubgrab = self.create_publisher(Bool, '/stick/grab', 10)
 
         # Broadcast the world -> pelvis transform.
         self.broadcaster = tf2_ros.TransformBroadcaster(self)
 
-        self.create_subscription(PoseStamped, '/stick/pose',
-                                 self.recvstick, 10)
+        self.create_subscription(PoseStamped, '/stick/pose', self.recvstick, 10)
+        self.create_subscription(String, '/stick/result', self.recvresult, 10)
         self.get_logger().info("Waiting for a /joint_states subscriber...")
         while(not self.count_subscribers('/joint_states')):
             pass
@@ -123,14 +131,26 @@ class TrajectoryNode(Node):
 
         self.zlast = self.pstick[2]
 
+    # return the hand home after a successful or missed catch
+    def recvresult(self, msg):
+        if msg.data in ['CAUGHT', 'MISSED']:
+            (p, _, _, _) = self.chain.fkin(self.qc)
+            self.pA = p
+            self.pB = self.phome.copy()
+            self.tstart = self.t
+            self.pstick = None
+            self.zlast = 0.0
+            self.get_logger().info("%s - Returning home." % msg.data)
 
     # world stick pos -> pelvis for reaching 
     def catchpoint(self, pstick):
-        # catch point 
+        # Desired catching point in the world frame
         pw = pxyz(pstick[0], pstick[1], ZCATCH)
-        pd = self.Rwp.T @ (pw - self.pwp)
 
-        # shoulder reachable area
+        # convert to the upper torso frame
+        pd = self.Rwt.T @ (pw - self.pwt)
+
+        # approximate reach limit.
         d = pd - self.phome
         if np.linalg.norm(d) > REACH:
             pd = self.phome + d * REACH / np.linalg.norm(d)
@@ -184,10 +204,14 @@ class TrajectoryNode(Node):
 
         # The hand pose, in the WORLD frame
         (p, R, _, _) = self.chain.fkin(self.qc)
-        pwh = self.pwp + self.Rwp @ p
-        Rwh = self.Rwp @ R
+        pwh = self.pwt + self.Rwt @ p
+        Rwh = self.Rwt @ R
         self.pubhand.publish(PoseStamped(
             header=header, pose=Pose_from_Rp(Rwh, pwh)))
+        
+        # attempt to grab near the end of the reaching trajectory
+        grab = self.pstick is not None and tseg >= TREACH - 0.10
+        self.pubgrab.publish(Bool(data=bool(grab)))
 
 #  Main Code
 def main(args=None):
