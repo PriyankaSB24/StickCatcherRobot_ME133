@@ -7,12 +7,12 @@ Team: Priyanka, Jenny, Katie
 https://docs.google.com/document/d/1YoZTJPoujT3qExUKqXEzDIid0VnyyDaPFpnXUgqOg4g/edit?tab=t.0
 
 
-# --- one time ---
+# --- one time --- 
 cd ~/robotws
 colcon build --symlink-install
 source ~/robotws/install/setup.bash
 
-# tab 1 - Atlas  (first)
+# tab 1 - Atlas  (FIRST, or tab 3 hangs)
 ros2 run robot_state_publisher robot_state_publisher \
     ~/robotws/src/atlas_description/urdf/atlas_v5.urdf
 
@@ -26,5 +26,7 @@ ros2 run stickcatcher catch
 ros2 run stickcatcher sticksim
 
 # sanity check 
-ros2 topic hz /hand          # catch is alive
+# sanity check
+ros2 topic hz /hand                       
 ros2 topic echo /stick/result --once
+ros2 topic echo /stick/twist --once   
