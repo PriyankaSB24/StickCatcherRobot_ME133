@@ -9,7 +9,9 @@ https://docs.google.com/document/d/1YoZTJPoujT3qExUKqXEzDIid0VnyyDaPFpnXUgqOg4g/
 
 # --- one time --- 
 cd ~/robotws
+
 colcon build --symlink-install
+
 source ~/robotws/install/setup.bash
 
 # tab 1 - Atlas  (FIRST, or tab 3 hangs)
@@ -27,6 +29,8 @@ ros2 run stickcatcher sticksim
 
 # sanity check 
 # sanity check
-ros2 topic hz /hand                       
+ros2 topic hz /hand        
+
 ros2 topic echo /stick/result --once
+
 ros2 topic echo /stick/twist --once   
